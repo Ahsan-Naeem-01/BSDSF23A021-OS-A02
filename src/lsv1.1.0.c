@@ -15,12 +15,20 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <stdbool.h>
+#include <grp.h>
+#include <pwd.h>
+#include <utime.h>
+#include <time.h>
 
 extern int errno;
 
 void do_ls(const char *dir);
 void do_ls_long(const char *dir);
 long long get_block_size(DIR * dp, const char *dir);
+void get_file_permissions(int mode, char str[]);
+char get_file_type(int mode);
+void format_time(time_t file_epoch, char *out_str);
+
 int main(int argc, char const *argv[])
 {
     int opt;
@@ -111,8 +119,17 @@ void do_ls_long(const char *dir){
  			perror("stat failed");
 			exit(1);
 		}
-		printf("%o %ld %d %d %ld %ld %s\n", info.st_mode, info.st_nlink, info.st_uid, info.st_gid, info.st_size, info.st_mtime, entry->d_name);
-    	}
+		struct group * grp = getgrgid(info.st_gid);
+		struct passwd * pwd = getpwuid(info.st_uid);
+		char filePermissions[10];
+		get_file_permissions(info.st_mode, filePermissions);
+		char fileType = get_file_type(info.st_mode);
+		char ls_time[16];
+                format_time(info.st_mtime, ls_time);
+
+		printf("%c%s %ld %s %s %ld %s %s\n",fileType, filePermissions, info.st_nlink, pwd->pw_name, grp->gr_name, info.st_size, ls_time, entry->d_name);
+
+	}
 }
 
 long long get_block_size(DIR * dp, const char *dir){
@@ -133,3 +150,59 @@ long long get_block_size(DIR * dp, const char *dir){
 	rewinddir(dp);
 	return total_blocks;
 }
+
+void get_file_permissions(int mode, char str[]){
+	strcpy(str, "---------");
+	//owner  permissions
+  	 if((mode & 0000400) == 0000400) str[0] = 'r';
+	if((mode & 0000200) == 0000200) str[1] = 'w';
+	if((mode & 0000100) == 0000100) str[2] = 'x';
+	//group permissions
+	if((mode & 0000040) == 0000040) str[3] = 'r'; 
+	if((mode & 0000020) == 0000020) str[4] = 'w';
+     	if((mode & 0000010) == 0000010) str[5] = 'x';
+	//others  permissions
+	if((mode & 0000004) == 0000004) str[6] = 'r';
+     	if((mode & 0000002) == 0000002) str[7] = 'w';
+    	if((mode & 0000001) == 0000001) str[8] = 'x';
+	//special  permissions
+     	if((mode & 0004000) == 0004000) str[2] = 's';
+     	if((mode & 0002000) == 0002000) str[5] = 's';
+     	if((mode & 0001000) == 0001000) str[8] = 't';
+}
+
+char get_file_type(int mode){
+	if ((mode &  0170000) == 0010000)
+  		return 'p';
+       	else if ((mode &  0170000) == 0020000)
+		return 'c';
+       	else if ((mode &  0170000) == 0040000)
+        	return 'd';
+	else if ((mode &  0170000) == 0060000)
+               	return 'b';
+       	else if ((mode &  0170000) == 0100000)
+                return '-';
+	else if ((mode &  0170000) == 0120000)
+               	return 'l';
+	else if ((mode &  0170000) == 0140000)
+                return 's';
+	else
+		return 'u';//Unknown mode
+
+}
+void format_time(time_t file_epoch, char *out_str) {
+       	time_t now = time(NULL);
+     
+	double diff = difftime(now, file_epoch);
+	char *ctime_str = ctime(&file_epoch);
+	if (diff > 15552000 || file_epoch > now) {
+       	 	// older than 6 months → show year
+		snprintf(out_str, 16, "%.3s %2.2s  %.4s",
+               		ctime_str + 4, ctime_str + 8, ctime_str + 20);
+       	} else {
+	       	// recent → show HH:MM
+		snprintf(out_str, 16, "%.3s %2.2s %5.5s",
+         		ctime_str + 4, ctime_str + 8, ctime_str + 11);
+    	}
+}
+

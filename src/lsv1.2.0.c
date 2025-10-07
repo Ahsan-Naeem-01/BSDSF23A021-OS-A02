@@ -1,11 +1,11 @@
 /*
-* Programming Assignment 02: lsv1.1.0
-* This is the source file of version 1.1.0
+* Programming Assignment 02: lsv1.2.0
+* This is the source file of version 1.2.0
 * Read the write-up of the assignment to add the features to this base version
 * Usage:
-*       $ lsv1.1.0 
-*       % lsv1.1.0  /home
-*       $ lsv1.1.0  /home/kali/   /etc/
+*       $ lsv1.2.0 
+*       % lsv1.2.0  /home
+*       $ lsv1.2.0  /home/kali/   /etc/
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +19,8 @@
 #include <pwd.h>
 #include <utime.h>
 #include <time.h>
+#include <sys/ioctl.h>
+
 
 extern int errno;
 
@@ -28,6 +30,10 @@ long long get_block_size(DIR * dp, const char *dir);
 void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
 void format_time(time_t file_epoch, char *out_str);
+char **read_filenames(const char *dir, int *num_files, int *max_len);
+void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows);
+int get_terminal_width();
+void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
 
 int main(int argc, char const *argv[])
 {
@@ -68,32 +74,20 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
+void do_ls(const char *dir) {
+	int num_files, max_len;
+	char **filenames = read_filenames(dir, &num_files, &max_len);
+ 
+	if (!filenames)
+	       	return;
+	int num_cols, num_rows;
+        calculate_layout(num_files, max_len, &num_cols, &num_rows);
 
-
-
-void do_ls(const char *dir)
-{
-    struct dirent *entry;
-    DIR *dp = opendir(dir);
-    if (dp == NULL)
-    {
-        fprintf(stderr, "Cannot open directory : %s\n", dir);
-        return;
-    }
-    errno = 0;
-    while ((entry = readdir(dp)) != NULL)
-    {
-        if (entry->d_name[0] == '.')
-            continue;
-        printf("%s\n", entry->d_name);
-    }
-
-    if (errno != 0)
-    {
-        perror("readdir failed");
-    }
-
-    closedir(dp);
+	print_columns(filenames, num_files, num_cols, num_rows, max_len);
+	for (int i = 0; i < num_files; i++) {
+	       	free(filenames[i]); // free individual strings
+       	}
+	free(filenames); // free array
 }
 
 void do_ls_long(const char *dir){
@@ -205,4 +199,74 @@ void format_time(time_t file_epoch, char *out_str) {
          		ctime_str + 4, ctime_str + 8, ctime_str + 11);
     	}
 }
+
+char **read_filenames(const char *dir, int *num_files, int *max_len) {
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        fprintf(stderr, "Cannot open directory: %s\n", dir);
+        return NULL;
+    }
+
+    struct dirent *entry;
+    int capacity = 64; // initial capacity
+    char **filenames = malloc(capacity * sizeof(char *));
+    *num_files = 0;
+    *max_len = 0;
+
+    while ((entry = readdir(dp)) != NULL) {
+        if (entry->d_name[0] == '.')
+            continue;
+
+        int len = strlen(entry->d_name);
+        if (len > *max_len)
+            *max_len = len;
+
+        if (*num_files >= capacity) {
+            capacity *= 2;
+            filenames = realloc(filenames, capacity * sizeof(char *));
+        }
+
+        filenames[*num_files] = strdup(entry->d_name); // copy string
+        (*num_files)++;
+    }
+
+    closedir(dp);
+    return filenames;
+}
+
+int get_terminal_width() {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) {
+        // fallback if ioctl fails
+        return 80;
+    }
+    return w.ws_col;
+}
+
+void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows) {
+    int term_width = get_terminal_width();
+    int spacing = 2; // space between columns
+    *num_cols = term_width / (max_len + spacing);
+    if (*num_cols < 1)
+        *num_cols = 1;
+
+    *num_rows = (num_files + *num_cols - 1) / *num_cols; // ceiling division
+}
+
+void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len) {
+    int spacing = 2;
+
+    for (int row = 0; row < num_rows; row++) {
+        for (int col = 0; col < num_cols; col++) {
+            int idx = col * num_rows + row;
+            if (idx >= num_files)
+                continue;
+
+            // Print filename
+            printf("%-*s", max_len + spacing, filenames[idx]);
+        }
+        printf("\n");
+    }
+}
+
 

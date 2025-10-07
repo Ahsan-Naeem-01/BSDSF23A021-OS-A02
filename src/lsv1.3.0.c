@@ -34,6 +34,7 @@ char **read_filenames(const char *dir, int *num_files, int *max_len);
 void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows);
 int get_terminal_width();
 void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
+void print_horizontal(char **filenames, int num_files, int max_len);
 
 typedef enum { MODE_DEFAULT = 0, MODE_LONG = 1, MODE_HORIZONTAL = 2 } display_mode_t;
 
@@ -65,30 +66,28 @@ int main(int argc, char const *argv[])
     
 	}
 
-
-
-
-	// If no directory is given, use "."
 	if (optind == argc) {
-        	if (long_listing)
-			do_ls_long(".");
+	 // no directory arg -> use "."
+        	if (mode == MODE_LONG)
+          	  	do_ls_long(".");
 		else
-			do_ls(".");
-	} 
-	else {
-		// Process all directories listed
-	 	for (int i = optind; i < argc; i++) {
-		       	printf("Directory listing of %s:\n", argv[i]);
-			if (long_listing)
+			do_ls(".", mode);   // modified do_ls signature (see below)
+	}
+       	else {       
+		for (int i = optind; i < argc; i++) {            
+			printf("Directory listing of %s:\n", argv[i]);          
+		       	if (mode == MODE_LONG)
 				do_ls_long(argv[i]);
 		       	else
-				do_ls(argv[i]);
+			       	do_ls(argv[i], mode);
 		       	puts("");
 		}
     }
 
-    return 0;
-}
+
+
+
+
 
 void do_ls(const char *dir) {
 	int num_files, max_len;
@@ -285,4 +284,39 @@ void print_columns(char **filenames, int num_files, int num_cols, int num_rows, 
     }
 }
 
+// spacing between columns
+static const int COL_SPACING = 2;
+
+void print_horizontal(char **filenames, int num_files, int max_len) {
+    int term_width = get_terminal_width();
+    int col_width = max_len + COL_SPACING;
+    if (col_width <= 0) col_width = 1;
+
+    int current_pos = 0; // current horizontal position in characters
+
+    for (int i = 0; i < num_files; i++) {
+        // If filename itself longer than terminal width, print it on its own line
+        int name_len = strlen(filenames[i]);
+        // If adding this column would exceed terminal width, wrap
+        if (current_pos != 0 && (current_pos + col_width) > term_width) {
+            printf("\n");
+            current_pos = 0;
+        }
+
+        // If filename is longer than column width, print it then a newline
+        if (name_len > max_len) {
+            // print directly (no padding) and wrap to next line
+            printf("%s\n", filenames[i]);
+            current_pos = 0;
+            continue;
+        }
+
+        // print with left alignment in col_width spaces
+        printf("%-*s", col_width, filenames[i]);
+        current_pos += col_width;
+    }
+    // finish with newline if we didn't just print one
+    if (current_pos != 0)
+        printf("\n");
+}
 

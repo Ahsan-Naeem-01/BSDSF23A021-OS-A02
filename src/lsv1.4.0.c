@@ -1,11 +1,11 @@
 /*
-* Programming Assignment 02: lsv1.3.0
-* This is the source file of version 1.3.0
+* Programming Assignment 02: lsv1.4.0
+* This is the source file of version 1.4.0
 * Read the write-up of the assignment to add the features to this base version
 * Usage:
-*       $ lsv1.3.0 
-*       % lsv1.3.0  /home
-*       $ lsv1.3.0  /home/kali/   /etc/
+*       $ lsv1.4.0 
+*       % lsv1.4.0  /home
+*       $ lsv1.4.0  /home/kali/   /etc/
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@ extern int errno;
 
 void do_ls(const char *dir, display_mode_t mode);
 void do_ls_long(const char *dir);
-long long get_block_size(DIR * dp, const char *dir);
+long long get_block_size(const char *dir);
 void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
 void format_time(time_t file_epoch, char *out_str);
@@ -37,8 +37,6 @@ int get_terminal_width();
 void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
 void print_horizontal(char **filenames, int num_files, int max_len);
 static int cmp_strings(const void *a, const void *b);
-
-
 
 
 int main(int argc, char const *argv[])
@@ -122,45 +120,46 @@ void do_ls(const char *dir, display_mode_t mode)
 
 
 
+void do_ls_long(const char *dir) {
 
+    long long total_block_size = get_block_size(dir);
+    printf("total %lld\n", total_block_size/2);
+    int num_files = 0, max_len = 0;
+    char **filenames = read_filenames(dir, &num_files, &max_len);
+    if (!filenames) return;
 
-void do_ls_long(const char *dir){
-	struct dirent *entry;
-   	DIR *dp = opendir(dir);
-   	if (dp == NULL)
-    	{
-       	 	fprintf(stderr, "Cannot open directory : %s\n", dir);
-        	return;
-    	}
-	long long total_block_size = get_block_size(dp, dir);
-	printf("total %lld\n", total_block_size/2);
-	while ((entry = readdir(dp)) != NULL)
-    	{
-        	if (entry->d_name[0] == '.')
-           		 continue;
-	       	char path[1024];
-       		snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+    for (int i = 0; i < num_files; ++i) {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);
 
-		struct stat info;
-		int rv = lstat(path, &info);
-		if (rv == -1){
- 			perror("stat failed");
-			exit(1);
-		}
-		struct group * grp = getgrgid(info.st_gid);
-		struct passwd * pwd = getpwuid(info.st_uid);
-		char filePermissions[10];
-		get_file_permissions(info.st_mode, filePermissions);
-		char fileType = get_file_type(info.st_mode);
-		char ls_time[16];
-                format_time(info.st_mtime, ls_time);
-
-		printf("%c%s %ld %s %s %ld %s %s\n",fileType, filePermissions, info.st_nlink, pwd->pw_name, grp->gr_name, info.st_size, ls_time, entry->d_name);
-
-	}
+        struct stat info;
+        if (lstat(path, &info) == -1) {
+            perror("lstat failed");
+            continue;
+        }
+        struct group *grp = getgrgid(info.st_gid);
+        struct passwd *pwd = getpwuid(info.st_uid);
+        char filePermissions[10];
+        get_file_permissions(info.st_mode, filePermissions);
+        char fileType = get_file_type(info.st_mode);
+        char ls_time[16];
+        format_time(info.st_mtime, ls_time);
+	printf("%c%s %ld %s %s %ld %s %s\n",fileType, filePermissions, info.st_nlink, pwd->pw_name, grp->gr_name, info.st_size, ls_time, filenames[i]);
+    }
+    // free memory
+    for (int i = 0; i < num_files; ++i) free(filenames[i]);
+    free(filenames);
 }
 
-long long get_block_size(DIR * dp, const char *dir){
+long long get_block_size(const char *dir){
+	DIR *dp = opendir(dir);
+        if (dp == NULL)
+        {
+                fprintf(stderr, "Cannot open directory : %s\n", dir);
+		closedir(dp);
+                return 0;
+        }
+
 	long long total_blocks = 0;
 	struct dirent *entry;
     	// First pass: calculate total blocks
@@ -175,7 +174,7 @@ long long get_block_size(DIR * dp, const char *dir){
 		total_blocks += info.st_blocks;
 	}
 	// Reset directory stream to beginning
-	rewinddir(dp);
+	closedir(dp);
 	return total_blocks;
 }
 

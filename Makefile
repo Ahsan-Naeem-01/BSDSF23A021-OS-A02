@@ -1,4 +1,4 @@
-label = lsv1.1.0
+label = lsv1.3.0
 target = bin/${label}
 prefix = /usr/local/bin
 

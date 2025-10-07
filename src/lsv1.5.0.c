@@ -42,8 +42,8 @@ void format_time(time_t file_epoch, char *out_str);
 char **read_filenames(const char *dir, int *num_files, int *max_len, bool show_hidden);
 void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows);
 int get_terminal_width();
-void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
-void print_horizontal(char **filenames, int num_files, int max_len);
+void print_columns(const char * dir, char **filenames, int num_files, int num_cols, int num_rows, int max_len);
+void print_horizontal(const char * dir, char **filenames, int num_files, int max_len);
 static int cmp_strings(const void *a, const void *b);
 void print_colored(const char *name, mode_t mode); 
 
@@ -116,12 +116,12 @@ void do_ls(const char *dir, display_mode_t mode, bool show_hidden)
     }
 
     if (mode == MODE_HORIZONTAL) {
-        print_horizontal(filenames, num_files, max_len);
+        print_horizontal(dir, filenames, num_files, max_len);
     } else {
         // default: down then across
         int num_cols, num_rows;
         calculate_layout(num_files, max_len, &num_cols, &num_rows);
-        print_columns(filenames, num_files, num_cols, num_rows, max_len);
+        print_columns(dir, filenames, num_files, num_cols, num_rows, max_len);
     }
 
     // free memory
@@ -301,17 +301,26 @@ void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows) 
     *num_rows = (num_files + *num_cols - 1) / *num_cols; // ceiling division
 }
 
-void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len) {
+void print_columns(const char * dir, char **filenames, int num_files, int num_cols, int num_rows, int max_len) {
     int spacing = 2;
-
+    char path[1024];
     for (int row = 0; row < num_rows; row++) {
         for (int col = 0; col < num_cols; col++) {
             int idx = col * num_rows + row;
             if (idx >= num_files)
                 continue;
-
-            // Print filename
-            printf("%-*s", max_len + spacing, filenames[idx]);
+	    snprintf(path, sizeof(path), "%s/%s", dir, filenames[idx]);
+            struct stat info;
+            int name_len = (int)strlen(filenames[idx]);
+	    if (lstat(path, &info) == -1) {
+                printf("%-*s", max_len + spacing, filenames[idx]);
+                continue;
+            }
+	    /* print colored filename, then pad with spaces for alignment */
+            print_colored(filenames[idx], info.st_mode);
+	    int pad = max_len - name_len + spacing;
+            for (int p = 0; p < pad; p++) putchar(' ');
+           
         }
         printf("\n");
     }
@@ -320,12 +329,13 @@ void print_columns(char **filenames, int num_files, int num_cols, int num_rows, 
 // spacing between columns
 static const int COL_SPACING = 2;
 
-void print_horizontal(char **filenames, int num_files, int max_len) {
+void print_horizontal(const char * dir, char **filenames, int num_files, int max_len) {
     int term_width = get_terminal_width();
     int col_width = max_len + COL_SPACING;
     if (col_width <= 0) col_width = 1;
 
     int current_pos = 0; // current horizontal position in characters
+    char path[1024];
 
     for (int i = 0; i < num_files; i++) {
         // If filename itself longer than terminal width, print it on its own line
@@ -335,17 +345,29 @@ void print_horizontal(char **filenames, int num_files, int max_len) {
             printf("\n");
             current_pos = 0;
         }
-
-        // If filename is longer than column width, print it then a newline
+        snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);
+        struct stat info;
+	if (lstat(path, &info) == -1){
+            // If filename is longer than column width, print it then a newline
+            if (name_len > max_len) {
+                // print directly (no padding) and wrap to next line
+                printf("%s\n", filenames[i]);
+                current_pos = 0;
+             }else {
+	     	printf("%-*s", col_width, filenames[i]);
+                current_pos += col_width;
+	     }
+	    continue;
+        }
         if (name_len > max_len) {
-            // print directly (no padding) and wrap to next line
-            printf("%s\n", filenames[i]);
+            print_colored(filenames[i], info.st_mode);
+            printf("\n");
             current_pos = 0;
             continue;
         }
-
-        // print with left alignment in col_width spaces
-        printf("%-*s", col_width, filenames[i]);
+	print_colored(filenames[i], info.st_mode);
+        int pad = col_width - name_len;
+        for (int p = 0; p < pad; p++) putchar(' ');
         current_pos += col_width;
     }
     // finish with newline if we didn't just print one

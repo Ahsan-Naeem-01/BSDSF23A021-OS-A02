@@ -28,6 +28,7 @@ long long get_block_size(DIR * dp, const char *dir);
 void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
 void format_time(time_t file_epoch, char *out_str);
+char **read_filenames(const char *dir, int *num_files, int *max_len);
 
 int main(int argc, char const *argv[])
 {
@@ -68,32 +69,16 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-
-
-
-void do_ls(const char *dir)
-{
-    struct dirent *entry;
-    DIR *dp = opendir(dir);
-    if (dp == NULL)
-    {
-        fprintf(stderr, "Cannot open directory : %s\n", dir);
-        return;
-    }
-    errno = 0;
-    while ((entry = readdir(dp)) != NULL)
-    {
-        if (entry->d_name[0] == '.')
-            continue;
-        printf("%s\n", entry->d_name);
-    }
-
-    if (errno != 0)
-    {
-        perror("readdir failed");
-    }
-
-    closedir(dp);
+void do_ls(const char *dir) {
+	int num_files, max_len;
+	char **filenames = read_filenames(dir, &num_files, &max_len);
+       	if (!filenames)
+	       	return;
+	for (int i = 0; i < num_files; i++) {
+		printf("%s\n", filenames[i]);
+	       	free(filenames[i]); // free individual strings
+       	}
+	free(filenames); // free array
 }
 
 void do_ls_long(const char *dir){
@@ -204,5 +189,39 @@ void format_time(time_t file_epoch, char *out_str) {
 		snprintf(out_str, 16, "%.3s %2.2s %5.5s",
          		ctime_str + 4, ctime_str + 8, ctime_str + 11);
     	}
+}
+
+char **read_filenames(const char *dir, int *num_files, int *max_len) {
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        fprintf(stderr, "Cannot open directory: %s\n", dir);
+        return NULL;
+    }
+
+    struct dirent *entry;
+    int capacity = 64; // initial capacity
+    char **filenames = malloc(capacity * sizeof(char *));
+    *num_files = 0;
+    *max_len = 0;
+
+    while ((entry = readdir(dp)) != NULL) {
+        if (entry->d_name[0] == '.')
+            continue;
+
+        int len = strlen(entry->d_name);
+        if (len > *max_len)
+            *max_len = len;
+
+        if (*num_files >= capacity) {
+            capacity *= 2;
+            filenames = realloc(filenames, capacity * sizeof(char *));
+        }
+
+        filenames[*num_files] = strdup(entry->d_name); // copy string
+        (*num_files)++;
+    }
+
+    closedir(dp);
+    return filenames;
 }
 

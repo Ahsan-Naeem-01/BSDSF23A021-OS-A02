@@ -342,7 +342,7 @@ void print_horizontal(char **filenames, int num_files, int max_len) {
 static int cmp_strings(const void *a, const void *b) {
     const char *const *sa = a;
     const char *const *sb = b;
-    return strcasecmp(*sa, *sb);
+    return strcmp(*sa, *sb);
 }
 
 

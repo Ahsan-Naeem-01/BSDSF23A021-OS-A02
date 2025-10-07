@@ -19,6 +19,8 @@
 #include <pwd.h>
 #include <utime.h>
 #include <time.h>
+#include <sys/ioctl.h>
+
 
 extern int errno;
 
@@ -29,6 +31,8 @@ void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
 void format_time(time_t file_epoch, char *out_str);
 char **read_filenames(const char *dir, int *num_files, int *max_len);
+void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows);
+int get_terminal_width();
 
 int main(int argc, char const *argv[])
 {
@@ -72,7 +76,11 @@ int main(int argc, char const *argv[])
 void do_ls(const char *dir) {
 	int num_files, max_len;
 	char **filenames = read_filenames(dir, &num_files, &max_len);
-       	if (!filenames)
+
+	int num_cols, num_rows;
+	calculate_layout(num_files, max_len, &num_cols, &num_rows);
+ 
+	if (!filenames)
 	       	return;
 	for (int i = 0; i < num_files; i++) {
 		printf("%s\n", filenames[i]);
@@ -223,5 +231,24 @@ char **read_filenames(const char *dir, int *num_files, int *max_len) {
 
     closedir(dp);
     return filenames;
+}
+
+int get_terminal_width() {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) {
+        // fallback if ioctl fails
+        return 80;
+    }
+    return w.ws_col;
+}
+
+void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows) {
+    int term_width = get_terminal_width();
+    int spacing = 2; // space between columns
+    *num_cols = term_width / (max_len + spacing);
+    if (*num_cols < 1)
+        *num_cols = 1;
+
+    *num_rows = (num_files + *num_cols - 1) / *num_cols; // ceiling division
 }
 

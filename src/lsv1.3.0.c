@@ -21,10 +21,11 @@
 #include <time.h>
 #include <sys/ioctl.h>
 
+typedef enum { MODE_DEFAULT = 0, MODE_LONG = 1, MODE_HORIZONTAL = 2 } display_mode_t;
 
 extern int errno;
 
-void do_ls(const char *dir);
+void do_ls(const char *dir, display_mode_t mode);
 void do_ls_long(const char *dir);
 long long get_block_size(DIR * dp, const char *dir);
 void get_file_permissions(int mode, char str[]);
@@ -36,7 +37,8 @@ int get_terminal_width();
 void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
 void print_horizontal(char **filenames, int num_files, int max_len);
 
-typedef enum { MODE_DEFAULT = 0, MODE_LONG = 1, MODE_HORIZONTAL = 2 } display_mode_t;
+
+
 
 
 int main(int argc, char const *argv[])
@@ -82,28 +84,40 @@ int main(int argc, char const *argv[])
 			       	do_ls(argv[i], mode);
 		       	puts("");
 		}
+	}
+}
+
+void do_ls(const char *dir, display_mode_t mode)
+{
+    int num_files = 0;
+    int max_len = 0;
+    char **filenames = read_filenames(dir, &num_files, &max_len);
+    if (filenames == NULL) {
+        return;
     }
 
+    if (num_files == 0) {
+        free(filenames);
+        return;
+    }
 
-
-
-
-
-void do_ls(const char *dir) {
-	int num_files, max_len;
-	char **filenames = read_filenames(dir, &num_files, &max_len);
- 
-	if (!filenames)
-	       	return;
-	int num_cols, num_rows;
+    if (mode == MODE_HORIZONTAL) {
+        print_horizontal(filenames, num_files, max_len);
+    } else {
+        // default: down then across
+        int num_cols, num_rows;
         calculate_layout(num_files, max_len, &num_cols, &num_rows);
+        print_columns(filenames, num_files, num_cols, num_rows, max_len);
+    }
 
-	print_columns(filenames, num_files, num_cols, num_rows, max_len);
-	for (int i = 0; i < num_files; i++) {
-	       	free(filenames[i]); // free individual strings
-       	}
-	free(filenames); // free array
+    // free memory
+    for (int i = 0; i < num_files; i++) free(filenames[i]);
+    free(filenames);
 }
+
+
+
+
 
 void do_ls_long(const char *dir){
 	struct dirent *entry;

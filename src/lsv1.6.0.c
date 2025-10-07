@@ -33,8 +33,8 @@ typedef enum { MODE_DEFAULT = 0, MODE_LONG = 1, MODE_HORIZONTAL = 2} display_mod
 
 extern int errno;
 
-void do_ls(const char *dir, display_mode_t mode, bool show_hidden);
-void do_ls_long(const char *dir, bool show_hidden);
+void do_ls(const char *dir, display_mode_t mode, bool show_hidden, bool recursive);
+void do_ls_long(const char *dir, bool show_hidden, bool recursive);
 long long get_block_size(const char *dir, bool show_hidden);
 void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
@@ -51,6 +51,7 @@ int main(int argc, char const *argv[])
 {
 	int opt;
 	bool long_listing = false;  
+	bool recursive = false;
     	display_mode_t mode = MODE_DEFAULT;
    
     
@@ -69,6 +70,9 @@ int main(int argc, char const *argv[])
 			case 'a':
 				show_hidden = true;
 				break;
+			case 'R':
+				recursive = true;
+                		break;
 			default:
 				fprintf(stderr, "Usage: %s [-l] [-x] [directories...]\n", argv[0]);
 			   	exit(EXIT_FAILURE);
@@ -80,23 +84,27 @@ int main(int argc, char const *argv[])
 	if (optind == argc) {
 	 // no directory arg -> use "."
         	if (mode == MODE_LONG)
-          	  	do_ls_long(".", show_hidden);
+          	  	do_ls_long(".", show_hidden, recursive);
 		else
-			do_ls(".", mode, show_hidden);   // modified do_ls signature (see below)
+			do_ls(".", mode, show_hidden, recursive);   // modified do_ls signature (see below)
 	}
-       	else {       
-		for (int i = optind; i < argc; i++) {            
-			printf("Directory listing of %s:\n", argv[i]);          
-		       	if (mode == MODE_LONG)
-				do_ls_long(argv[i], show_hidden);
-		       	else
-			       	do_ls(argv[i], mode, show_hidden);
-		       	puts("");
-		}
-	}
+       	else {
+        	int num_dirs = argc - optind;
+        	for (int i = optind; i < argc; i++) {
+            		/* If not recursive and multiple dirs were passed, preserve old behavior of printing a header */
+            		if (!recursive && num_dirs > 1) {
+                		printf("Directory listing of %s:\n", argv[i]);
+            		}
+            		if (mode == MODE_LONG)
+                		do_ls_long(argv[i], show_hidden, recursive);
+            		else
+                		do_ls(argv[i], mode, show_hidden, recursive);
+           	 	if (i < argc - 1) puts("");
+        	}
+   	}
 }
 
-void do_ls(const char *dir, display_mode_t mode, bool show_hidden)
+void do_ls(const char *dir, display_mode_t mode, bool show_hidden, bool recursive)
 {
     int num_files = 0;
     int max_len = 0;
@@ -131,7 +139,7 @@ void do_ls(const char *dir, display_mode_t mode, bool show_hidden)
 
 
 
-void do_ls_long(const char *dir, bool show_hidden) {
+void do_ls_long(const char *dir, bool show_hidden, bool recursive) {
 
     long long total_block_size = get_block_size(dir, show_hidden);
     printf("total %lld\n", total_block_size/2);

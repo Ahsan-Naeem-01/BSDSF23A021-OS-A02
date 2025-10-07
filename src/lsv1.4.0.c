@@ -127,7 +127,9 @@ void do_ls_long(const char *dir) {
     int num_files = 0, max_len = 0;
     char **filenames = read_filenames(dir, &num_files, &max_len);
     if (!filenames) return;
-
+    if (num_files > 1) {
+        qsort(filenames, (size_t)num_files, sizeof(char *), cmp_strings);
+    }
     for (int i = 0; i < num_files; ++i) {
         char path[1024];
         snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);

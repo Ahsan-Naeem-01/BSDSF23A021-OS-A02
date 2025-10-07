@@ -35,7 +35,7 @@ extern int errno;
 
 void do_ls(const char *dir, display_mode_t mode, bool show_hidden);
 void do_ls_long(const char *dir, bool show_hidden);
-long long get_block_size(const char *dir);
+long long get_block_size(const char *dir, bool show_hidden);
 void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
 void format_time(time_t file_epoch, char *out_str);
@@ -133,7 +133,7 @@ void do_ls(const char *dir, display_mode_t mode, bool show_hidden)
 
 void do_ls_long(const char *dir, bool show_hidden) {
 
-    long long total_block_size = get_block_size(dir);
+    long long total_block_size = get_block_size(dir, show_hidden);
     printf("total %lld\n", total_block_size/2);
     int num_files = 0, max_len = 0;
     char **filenames = read_filenames(dir, &num_files, &max_len, show_hidden);
@@ -164,7 +164,7 @@ void do_ls_long(const char *dir, bool show_hidden) {
     free(filenames);
 }
 
-long long get_block_size(const char *dir){
+long long get_block_size(const char *dir, bool show_hidden){
 	DIR *dp = opendir(dir);
         if (dp == NULL)
         {
@@ -177,7 +177,7 @@ long long get_block_size(const char *dir){
 	struct dirent *entry;
     	// First pass: calculate total blocks
 	while ((entry = readdir(dp)) != NULL) {
-		if (entry->d_name[0] == '.')
+		if (entry->d_name[0] == '.' && !show_hidden)
 			continue;
 		char path[1024];
 		snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);

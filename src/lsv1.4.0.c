@@ -21,17 +21,17 @@
 #include <time.h>
 #include <sys/ioctl.h>
 
-typedef enum { MODE_DEFAULT = 0, MODE_LONG = 1, MODE_HORIZONTAL = 2 } display_mode_t;
+typedef enum { MODE_DEFAULT = 0, MODE_LONG = 1, MODE_HORIZONTAL = 2} display_mode_t;
 
 extern int errno;
 
-void do_ls(const char *dir, display_mode_t mode);
-void do_ls_long(const char *dir);
+void do_ls(const char *dir, display_mode_t mode, bool show_hidden);
+void do_ls_long(const char *dir, bool show_hidden);
 long long get_block_size(const char *dir);
 void get_file_permissions(int mode, char str[]);
 char get_file_type(int mode);
 void format_time(time_t file_epoch, char *out_str);
-char **read_filenames(const char *dir, int *num_files, int *max_len);
+char **read_filenames(const char *dir, int *num_files, int *max_len, bool show_hidden);
 void calculate_layout(int num_files, int max_len, int *num_cols, int *num_rows);
 int get_terminal_width();
 void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
@@ -47,8 +47,8 @@ int main(int argc, char const *argv[])
    
     
 	// Accept both -l and -x
-    
-	while ((opt = getopt(argc, (char * const *)argv, "lx")) != -1) {
+    	bool show_hidden = false;
+	while ((opt = getopt(argc, (char * const *)argv, "lxa")) != -1) {
 		switch (opt) {
 			case 'l':
 				// long listing should take precedence
@@ -57,6 +57,9 @@ int main(int argc, char const *argv[])
 			case 'x':
 				if (mode != MODE_LONG) // don't override long if already set
 					mode = MODE_HORIZONTAL;
+				break;
+			case 'a':
+				show_hidden = true;
 				break;
 			default:
 				fprintf(stderr, "Usage: %s [-l] [-x] [directories...]\n", argv[0]);
@@ -69,27 +72,27 @@ int main(int argc, char const *argv[])
 	if (optind == argc) {
 	 // no directory arg -> use "."
         	if (mode == MODE_LONG)
-          	  	do_ls_long(".");
+          	  	do_ls_long(".", show_hidden);
 		else
-			do_ls(".", mode);   // modified do_ls signature (see below)
+			do_ls(".", mode, show_hidden);   // modified do_ls signature (see below)
 	}
        	else {       
 		for (int i = optind; i < argc; i++) {            
 			printf("Directory listing of %s:\n", argv[i]);          
 		       	if (mode == MODE_LONG)
-				do_ls_long(argv[i]);
+				do_ls_long(argv[i], show_hidden);
 		       	else
-			       	do_ls(argv[i], mode);
+			       	do_ls(argv[i], mode, show_hidden);
 		       	puts("");
 		}
 	}
 }
 
-void do_ls(const char *dir, display_mode_t mode)
+void do_ls(const char *dir, display_mode_t mode, bool show_hidden)
 {
     int num_files = 0;
     int max_len = 0;
-    char **filenames = read_filenames(dir, &num_files, &max_len);
+    char **filenames = read_filenames(dir, &num_files, &max_len, show_hidden);
     if (filenames == NULL) {
         return;
     }
@@ -120,12 +123,12 @@ void do_ls(const char *dir, display_mode_t mode)
 
 
 
-void do_ls_long(const char *dir) {
+void do_ls_long(const char *dir, bool show_hidden) {
 
     long long total_block_size = get_block_size(dir);
     printf("total %lld\n", total_block_size/2);
     int num_files = 0, max_len = 0;
-    char **filenames = read_filenames(dir, &num_files, &max_len);
+    char **filenames = read_filenames(dir, &num_files, &max_len, show_hidden);
     if (!filenames) return;
     if (num_files > 1) {
         qsort(filenames, (size_t)num_files, sizeof(char *), cmp_strings);
@@ -235,7 +238,7 @@ void format_time(time_t file_epoch, char *out_str) {
     	}
 }
 
-char **read_filenames(const char *dir, int *num_files, int *max_len) {
+char **read_filenames(const char *dir, int *num_files, int *max_len, bool show_hidden) {
     DIR *dp = opendir(dir);
     if (!dp) {
         fprintf(stderr, "Cannot open directory: %s\n", dir);
@@ -249,7 +252,7 @@ char **read_filenames(const char *dir, int *num_files, int *max_len) {
     *max_len = 0;
 
     while ((entry = readdir(dp)) != NULL) {
-        if (entry->d_name[0] == '.')
+        if (entry->d_name[0] == '.' && show_hidden == false)
             continue;
 
         int len = strlen(entry->d_name);

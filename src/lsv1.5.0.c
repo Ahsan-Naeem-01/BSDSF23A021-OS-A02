@@ -157,7 +157,9 @@ void do_ls_long(const char *dir, bool show_hidden) {
         char fileType = get_file_type(info.st_mode);
         char ls_time[16];
         format_time(info.st_mtime, ls_time);
-	printf("%c%s %ld %s %s %ld %s %s\n",fileType, filePermissions, info.st_nlink, pwd->pw_name, grp->gr_name, info.st_size, ls_time, filenames[i]);
+	printf("%c%s %ld %s %s %ld %s ",fileType, filePermissions, info.st_nlink, pwd->pw_name, grp->gr_name, info.st_size, ls_time);
+	print_colored(filenames[i], info.st_mode);
+	printf("\n");
     }
     // free memory
     for (int i = 0; i < num_files; ++i) free(filenames[i]);

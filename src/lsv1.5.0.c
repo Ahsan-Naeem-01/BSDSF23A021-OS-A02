@@ -45,7 +45,7 @@ int get_terminal_width();
 void print_columns(char **filenames, int num_files, int num_cols, int num_rows, int max_len);
 void print_horizontal(char **filenames, int num_files, int max_len);
 static int cmp_strings(const void *a, const void *b);
-
+void print_colored(const char *name, mode_t mode); 
 
 int main(int argc, char const *argv[])
 {
@@ -358,4 +358,20 @@ static int cmp_strings(const void *a, const void *b) {
     return strcmp(*sa, *sb);
 }
 
+
+void print_colored(const char *name, mode_t mode) {
+    if (S_ISDIR(mode)) {
+        printf("%s%s%s", COLOR_BLUE, name, COLOR_RESET);
+    } else if (S_ISLNK(mode)) {
+        printf("%s%s%s", COLOR_PINK, name, COLOR_RESET);
+    } else if (mode & S_IXUSR) { // executable by owner
+        printf("%s%s%s", COLOR_GREEN, name, COLOR_RESET);
+    } else if (strstr(name, ".tar") || strstr(name, ".gz") || strstr(name, ".zip")) {
+        printf("%s%s%s", COLOR_RED, name, COLOR_RESET);
+    } else if (S_ISCHR(mode) || S_ISBLK(mode) || S_ISSOCK(mode) || S_ISFIFO(mode)) {
+        printf("%s%s%s", COLOR_REVERSE, name, COLOR_RESET);
+    } else {
+        printf("%s", name); // default color
+    }
+}
 

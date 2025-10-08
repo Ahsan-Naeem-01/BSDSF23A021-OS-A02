@@ -43,3 +43,15 @@ Ans. ANSI escape codes work by sending special sequences of characters to the te
 
 Ans. In Linux, each file has a set of permission bits stored in the st_mode field of the structure returned by the stat() or lstat() system call. To check if a file is executable, you need to look at the execute permission bits for the owner, group, and others. These bits are represented by the constants S_IXUSR (owner execute), S_IXGRP (group execute), and S_IXOTH (others execute). If any of these bits are set, it means the file can be run as a program by that user category. In C, you can check this by using a bitwise AND operation, for example:
 if (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)), which means the file is executable by at least one of the owner, group, or others.
+
+#### Q10. In a recursive function, what is a "base case"? In the context of your recursive ls, what is the base case that stops the recursion from continuing forever?
+
+Ans. In a recursive function, a base case is the condition that stops the function from calling itself again. It acts like a stopping point, preventing the recursion from going on forever and causing a crash. Without a base case, the function would keep calling itself endlessly.
+
+In the context of the recursive ls (-R) command, the base case happens when the program reaches a directory that has no more subdirectories to explore or when it encounters special directories like "." (current directory) and ".." (parent directory). When these conditions are met, the function does not make another recursive call, and the recursion stops naturally. This ensures the program lists all directories once and then ends safely.
+
+#### Q11. Explain why it is essential to construct a full path (e.g., "parent_dir/subdir") before making a recursive call. What would happen if you simply called do_ls("subdir") from within the do_ls("parent_dir") function call?
+
+Ans. It is essential to construct the full path (like "parent_dir/subdir") before making a recursive call because the program needs to know the exact location of the subdirectory in the file system. The function do_ls() uses this path to open the directory and list its contents. If you only pass "subdir" without including the parent directory’s name, the program will look for that subdirectory in the current working directory of the program, not inside the parent directory being processed. This can lead to errors such as “Cannot open directory” or cause the program to list the wrong directory. By constructing the full path, you ensure that the recursion correctly moves deeper into the directory tree and lists each subdirectory in its proper place.
+
+

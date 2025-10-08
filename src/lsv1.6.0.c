@@ -162,7 +162,7 @@ void do_ls(const char *dir, display_mode_t mode, bool show_hidden, bool recursiv
 
 
 void do_ls_long(const char *dir, bool show_hidden, bool recursive) {
-
+    if (recursive) printf("%s:\n", dir);
     long long total_block_size = get_block_size(dir, show_hidden);
     printf("total %lld\n", total_block_size/2);
     int num_files = 0, max_len = 0;
@@ -190,6 +190,21 @@ void do_ls_long(const char *dir, bool show_hidden, bool recursive) {
 	printf("%c%s %ld %s %s %ld %s ",fileType, filePermissions, info.st_nlink, pwd->pw_name, grp->gr_name, info.st_size, ls_time);
 	print_colored(filenames[i], info.st_mode);
 	printf("\n");
+    }
+    if (recursive){
+    	char path[1024];
+	for (int i = 0; i < num_files; i++){
+		if (strcmp(filenames[i], ".") == 0 || strcmp(filenames[i], "..") == 0)
+			continue;
+		snprintf(path, sizeof(path),"%s/%s", dir, filenames[i]);
+		struct stat info;
+		if (lstat(path, &info) == -1)
+			continue;
+		if (S_ISDIR(info.st_mode)){
+			printf("\n");
+			do_ls_long(path, show_hidden, recursive);
+		}
+	}
     }
     // free memory
     for (int i = 0; i < num_files; ++i) free(filenames[i]);

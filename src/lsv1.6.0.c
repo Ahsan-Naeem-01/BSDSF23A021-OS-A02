@@ -57,7 +57,7 @@ int main(int argc, char const *argv[])
     
 	// Accept both -l and -x
     	bool show_hidden = false;
-	while ((opt = getopt(argc, (char * const *)argv, "lxa")) != -1) {
+	while ((opt = getopt(argc, (char * const *)argv, "lxaR")) != -1) {
 		switch (opt) {
 			case 'l':
 				// long listing should take precedence
@@ -108,6 +108,7 @@ void do_ls(const char *dir, display_mode_t mode, bool show_hidden, bool recursiv
 {
     int num_files = 0;
     int max_len = 0;
+    if (recursive) printf("%s:\n", dir);
     char **filenames = read_filenames(dir, &num_files, &max_len, show_hidden);
     if (filenames == NULL) {
         return;
@@ -131,6 +132,27 @@ void do_ls(const char *dir, display_mode_t mode, bool show_hidden, bool recursiv
         calculate_layout(num_files, max_len, &num_cols, &num_rows);
         print_columns(dir, filenames, num_files, num_cols, num_rows, max_len);
     }
+     /* After listing, if recursive: descend into subdirectories */
+    if (recursive) {
+        char path[1024];
+        for (int i = 0; i < num_files; i++) {
+            /* skip "." and ".." explicitly */
+            if (strcmp(filenames[i], ".") == 0 || strcmp(filenames[i], "..") == 0)
+                continue;
+
+            snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);
+            struct stat info;
+            if (lstat(path, &info) == -1)
+                continue;
+            if (S_ISDIR(info.st_mode)) {
+                /* blank line separating directory blocks like ls -R */
+                printf("\n");
+                /* recursive call - keep same mode, show_hidden and recursion flag */
+                do_ls(path, mode, show_hidden, recursive);
+            }
+        }
+    }
+
 
     // free memory
     for (int i = 0; i < num_files; i++) free(filenames[i]);
